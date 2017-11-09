@@ -30,6 +30,7 @@ namespace OneDrivePhotoBrowser.Models
     public class ItemModel : INotifyPropertyChanged
     {
         private BitmapSource bitmap;
+        private int imageCount = 0;
 
         public ItemModel(DriveItem item)
         {
@@ -71,6 +72,18 @@ namespace OneDrivePhotoBrowser.Models
             get
             {
                 return this.Item == null ? null : this.Item.Id;
+            }
+        }
+
+        public int ImageCount
+        {
+            get
+            {
+                return this.imageCount;
+            }
+            set
+            {
+                this.imageCount = value;
             }
         }
 

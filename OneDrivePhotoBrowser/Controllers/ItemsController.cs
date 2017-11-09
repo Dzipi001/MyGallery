@@ -71,5 +71,80 @@ namespace OneDrivePhotoBrowser.Controllers
 
             return results;
         }
+
+
+        public async Task<ObservableCollection<ItemModel>> GetFolders(string id)
+        {
+            ObservableCollection<ItemModel> results = new ObservableCollection<ItemModel>();
+
+            IEnumerable<DriveItem> items;
+
+            var expandString = "thumbnails, children($expand=thumbnails)";
+
+            // If id isn't set, get the OneDrive root's photos and folders. Otherwise, get those for the specified item ID.
+            // Also retrieve the thumbnails for each item if using a consumer client.
+            var itemRequest = string.IsNullOrEmpty(id)
+                ? this.graphClient.Me.Drive.Root.Request().Expand(expandString)
+                : this.graphClient.Me.Drive.Items[id].Request().Expand(expandString);
+
+            var item = await itemRequest.GetAsync();
+            items = item.Children == null
+                ? new List<DriveItem>()
+                : item.Children.CurrentPage.Where(child => child.Folder != null);
+
+            foreach (var child in items)
+            {
+                results.Add(new ItemModel(child));
+            }
+
+            return results;
+        }
+
+
+        public async Task<ObservableCollection<ItemModel>> GetFoldersWithImages(string id)
+        {
+            ObservableCollection<ItemModel> results = new ObservableCollection<ItemModel>();
+            ObservableCollection<ItemModel> folders = await GetFolders(id);
+            ObservableCollection<ItemModel> images;
+
+            foreach (ItemModel folder in folders)
+            {
+                images = await GetImages(folder.Id);
+                if (images.Count > 0)
+                {
+                    folder.ImageCount = images.Count;
+                    results.Add(folder);
+                }
+            }
+
+            return results;
+        }
+
+        public async Task<ObservableCollection<ItemModel>> GetImages(string id)
+        {
+            ObservableCollection<ItemModel> results = new ObservableCollection<ItemModel>();
+
+            IEnumerable<DriveItem> items;
+
+            var expandString = "thumbnails, children($expand=thumbnails)";
+
+            // If id isn't set, get the OneDrive root's photos. Otherwise, get those for the specified item ID.
+            // Also retrieve the thumbnails for each item if using a consumer client.
+            var itemRequest = string.IsNullOrEmpty(id)
+                ? this.graphClient.Me.Drive.Root.Request().Expand(expandString)
+                : this.graphClient.Me.Drive.Items[id].Request().Expand(expandString);
+
+            var item = await itemRequest.GetAsync();
+            items = item.Children == null
+                ? new List<DriveItem>()
+                : item.Children.CurrentPage.Where(child => child.Image != null);
+
+            foreach (var child in items)
+            {
+                results.Add(new ItemModel(child));
+            }
+
+            return results;
+        }
     }
 }

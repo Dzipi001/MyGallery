@@ -34,6 +34,7 @@ namespace OneDrivePhotoBrowser
     using Windows.UI.Xaml;
     using Windows.UI.Xaml.Controls;
     using Windows.UI.Xaml.Media.Imaging;
+    using OneDrivePhotoBrowser.Controllers;
 
     /// <summary>
     /// An empty page that can be used on its own or navigated to within a Frame.
@@ -41,6 +42,7 @@ namespace OneDrivePhotoBrowser
     public sealed partial class ItemDetail : Page
     {
         private bool initialized = false;
+        private ItemsController itemsController;
 
         private DispatcherTimer slideShowTimer = new DispatcherTimer();
 
@@ -52,17 +54,31 @@ namespace OneDrivePhotoBrowser
 
         private async void ItemTile_Loaded(object sender, RoutedEventArgs e)
         {
+            if (this.itemsController == null)
+            {
+                this.itemsController = new ItemsController(((App)Application.Current).GraphClient);
+            }
+
             var last = ((App)Application.Current).NavigationStack.Last();
+            ((App)Application.Current).Items = await this.itemsController.GetFoldersWithImages(last.Id);
+            if (((App)Application.Current).Items.Count == 0)
+                return;
+
+            ((App)Application.Current).Items = await this.itemsController.GetImages(((App)Application.Current).Items[0].Id);
+            if (((App)Application.Current).Items.Count == 0)
+                return;
+
             this.DataContext = ((App)Application.Current).Items;
 
             await Dispatcher.RunAsync(
                 CoreDispatcherPriority.Low,
                 () =>
                 {
-                    imgFlipView.SelectedIndex = ((App)Application.Current).Items.IndexOf(last);
+                    //imgFlipView.SelectedIndex = ((App)Application.Current).Items.IndexOf(0);
+                    imgFlipView.SelectedIndex = 0;
                 });
 
-            await this.LoadImage(last);
+            await this.LoadImage(((App)Application.Current).Items[0]);
             progressRing.IsActive = false;
             initialized = true;
             SetTimer(5, true);

@@ -73,7 +73,7 @@ namespace OneDrivePhotoBrowser
                 {
                     app.GraphClient = AuthenticationHelper.GetAuthenticatedClient();
                     app.NavigationStack.Add(new ItemModel(new DriveItem()));
-                    this.Frame.Navigate(typeof(MainPage), e);
+                    this.Frame.Navigate(typeof(ItemDetail), e);
                 }
                 catch (ServiceException exception)
                 {
@@ -83,7 +83,7 @@ namespace OneDrivePhotoBrowser
             }
             else
             {
-                this.Frame.Navigate(typeof(MainPage), e);
+                this.Frame.Navigate(typeof(ItemDetail), e);
             }
         }
     }
