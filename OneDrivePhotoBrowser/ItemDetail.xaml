@@ -6,7 +6,26 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
+    <Page.BottomAppBar>
+        <CommandBar Name="GalleryBar" IsSticky="False">
+            <AppBarToggleButton Icon="Shuffle" Label="Shuffle" Click="AppBarButton_Click"/>
+            <AppBarToggleButton Icon="RepeatAll" Label="Repeat" Click="AppBarButton_Click"/>
+            <AppBarSeparator/>
+            <AppBarButton Icon="Back" Label="Back" Click="AppBarButton_Click"/>
+            <AppBarButton Icon="Stop" Label="Stop" Click="AppBarButton_Click"/>
+            <AppBarButton Icon="Play" Label="Play" Click="AppBarButton_Click"/>
+            <AppBarButton Icon="Forward" Label="Forward" Click="AppBarButton_Click"/>
 
+            <CommandBar.SecondaryCommands>
+                <AppBarButton Icon="Like" Label="Like" Click="AppBarButton_Click"/>
+                <AppBarButton Icon="Dislike" Label="Dislike" Click="AppBarButton_Click"/>
+            </CommandBar.SecondaryCommands>
+
+            <CommandBar.Content>
+                <TextBlock Text="Now playing..." Margin="12,14"/>
+            </CommandBar.Content>
+        </CommandBar>
+    </Page.BottomAppBar>
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <FlipView Name="imgFlipView" ItemsSource="{Binding}" SelectionChanged="ImageFlipView_SelectionChanged" Tapped="ImageFlipView_Tapped" Background="Black">
             <FlipView.ItemTemplate>
@@ -18,5 +37,6 @@
             </FlipView.ItemTemplate>
         </FlipView>
         <ProgressRing Name="progressRing" IsActive="True" Width="120" Height="120"></ProgressRing>
+        <StackPanel HorizontalAlignment="Left" Height="254" Margin="0,746,0,0" VerticalAlignment="Top" Width="1500"/>
     </Grid>
 </Page>

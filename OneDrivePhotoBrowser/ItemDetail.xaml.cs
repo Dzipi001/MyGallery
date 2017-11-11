@@ -35,6 +35,9 @@ namespace OneDrivePhotoBrowser
     using Windows.UI.Xaml.Controls;
     using Windows.UI.Xaml.Media.Imaging;
     using OneDrivePhotoBrowser.Controllers;
+    using System.Collections.ObjectModel;
+    using System.Collections.Generic;
+    using System.Numerics;
 
     /// <summary>
     /// An empty page that can be used on its own or navigated to within a Frame.
@@ -42,7 +45,14 @@ namespace OneDrivePhotoBrowser
     public sealed partial class ItemDetail : Page
     {
         private bool initialized = false;
+        private int totalImageCount = 0;
+        private int IMAGES_PER_BATCH = 4;
         private ItemsController itemsController;
+        private ObservableCollection<ItemModel> FolderswithImages = new ObservableCollection<ItemModel>();
+        private ObservableCollection<ItemModel> ActiveImages = new ObservableCollection<ItemModel>();
+        private ObservableCollection<ItemModel> UpcomingImages = new ObservableCollection<ItemModel>();
+        private ObservableCollection<ItemModel> PreviousImages = new ObservableCollection<ItemModel>();
+
 
         private DispatcherTimer slideShowTimer = new DispatcherTimer();
 
@@ -60,40 +70,91 @@ namespace OneDrivePhotoBrowser
             }
 
             var last = ((App)Application.Current).NavigationStack.Last();
-            ((App)Application.Current).Items = await this.itemsController.GetFoldersWithImages(last.Id);
-            if (((App)Application.Current).Items.Count == 0)
+            FolderswithImages = await this.itemsController.GetFoldersWithImages(null);
+            
+            if (FolderswithImages.Count == 0)
                 return;
 
-            ((App)Application.Current).Items = await this.itemsController.GetImages(((App)Application.Current).Items[0].Id);
-            if (((App)Application.Current).Items.Count == 0)
-                return;
+            foreach (ItemModel folder in FolderswithImages)
+            {
+                totalImageCount += folder.ImageCount;
+            }
 
-            this.DataContext = ((App)Application.Current).Items;
+            ActiveImages = await PopulateImageBatch(totalImageCount);
+        
+            if (ActiveImages.Count == 0)
+                return;
+            this.DataContext = ActiveImages;
 
             await Dispatcher.RunAsync(
                 CoreDispatcherPriority.Low,
                 () =>
                 {
-                    //imgFlipView.SelectedIndex = ((App)Application.Current).Items.IndexOf(0);
                     imgFlipView.SelectedIndex = 0;
                 });
 
-            await this.LoadImage(((App)Application.Current).Items[0]);
-            progressRing.IsActive = false;
+            UpcomingImages = await PopulateImageBatch(totalImageCount);
+
             initialized = true;
-            SetTimer(5, true);
+            //SetTimer(5, true);
+
+            await LoadImageBatch(ActiveImages);
+
+            progressRing.IsActive = false;
+
+            await LoadImageBatch(UpcomingImages);
         }
+
+        private async Task LoadImageBatch(ObservableCollection<ItemModel> batch)
+        {
+            foreach (ItemModel image in batch)
+            {
+                await this.LoadImage(batch[batch.IndexOf(image)]);
+            }
+        }
+
+        private async Task<ObservableCollection<ItemModel>> PopulateImageBatch(int imageCount)
+        {
+            ObservableCollection<ItemModel> result = new ObservableCollection<ItemModel>();
+            Random rnd = new Random();
+
+            for (int i = 0; i < IMAGES_PER_BATCH; i++)
+            {
+                int selectedImageIndex = rnd.Next(0, imageCount);
+                int imagecount = 0;
+                int foldercount = 0;
+
+                foreach (ItemModel folder in FolderswithImages)
+                {
+                    imagecount += folder.ImageCount;
+                    if (imagecount > selectedImageIndex + 1)
+                    {
+                        ItemModel nextRandomImage = await this.itemsController.GetImage(folder.Id, (selectedImageIndex - 1) - foldercount);
+                        result.Add(nextRandomImage);
+                        break;
+                    }
+                    foldercount += folder.ImageCount;
+                }
+            }
+            return result;
+        }
+
 
         private async void ImageFlipView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            // Load the picture for the newly-selected image.
-            if (imgFlipView.SelectedIndex != -1 && initialized)
+            if (imgFlipView.SelectedIndex == IMAGES_PER_BATCH - 1 && initialized)
             {
-                progressRing.IsActive = true;
-                var item = ((App)Application.Current).Items[imgFlipView.SelectedIndex];
-                await this.LoadImage(item);
-                progressRing.IsActive = false;
+                if (UpcomingImages.Count > 0)
+                {
+                    PreviousImages = ActiveImages;
+                    ActiveImages = UpcomingImages;
+                }
             }
+
+            this.DataContext = ActiveImages;
+            UpcomingImages = await PopulateImageBatch(totalImageCount);
+            await LoadImageBatch(UpcomingImages);
+
         }
 
         /// <summary>
@@ -151,17 +212,33 @@ namespace OneDrivePhotoBrowser
         }
 
         private void ImageFlipView_Tapped(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e)
-        { 
-            //if slideshowUIshown
-            //{
-                slideShowTimer.Stop();
-            //ShowSlideShowUI(true);
-            //}
-            //else
-            //{
-            //ShowSlideShowUI(false);
-            slideShowTimer.Start();
-            //}
+        {
+            if (GalleryBar.Visibility == Visibility.Visible)
+            {
+                ShowSlideShowUI(false);
+            }
+            else
+            {
+                ShowSlideShowUI(true);
+            }
         }
-}
+
+        private void AppBarButton_Click(object sender, RoutedEventArgs e)
+        {
+
+        }
+
+        private void ShowSlideShowUI(bool visible)
+        {
+            if(visible)
+            {
+                GalleryBar.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                GalleryBar.Visibility = Visibility.Collapsed;
+            }
+            
+        }
+    }
 }
