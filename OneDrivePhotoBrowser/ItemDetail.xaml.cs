@@ -46,7 +46,7 @@ namespace OneDrivePhotoBrowser
     {
         private bool initialized = false;
         private int totalImageCount = 0;
-        private int IMAGES_PER_BATCH = 4;
+        private int IMAGES_PER_BATCH = 25;
         private ItemsController itemsController;
         private ObservableCollection<ItemModel> FolderswithImages = new ObservableCollection<ItemModel>();
         private ObservableCollection<ItemModel> ActiveImages = new ObservableCollection<ItemModel>();

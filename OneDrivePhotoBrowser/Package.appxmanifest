@@ -1,10 +1,10 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" IgnorableNamespaces="uap mp">
-  <Identity Name="46443JamesCrowley.OneDrivePhoto" Publisher="CN=FACAEDA4-AC43-49AA-9261-882D1749B82C" Version="1.1.0.0" />
+  <Identity Name="LaVigoStudios.MyGallery" Publisher="CN=LavigoStudios" Version="1.1.0.0" />
   <mp:PhoneIdentity PhoneProductId="5ed83559-f02f-4c2f-b9d5-08ed4554f487" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
   <Properties>
     <DisplayName>OneDrivePhoto</DisplayName>
-    <PublisherDisplayName>James Crowley</PublisherDisplayName>
+    <PublisherDisplayName>GP</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
   <Dependencies>

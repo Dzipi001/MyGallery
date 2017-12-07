@@ -48,7 +48,6 @@ namespace OneDrivePhotoBrowser
         {
             if (this.itemsController == null)
             {
-                //this.itemsController = new ItemsController(((App)Application.Current).OneDriveClient);
                 this.itemsController = new ItemsController(((App)Application.Current).GraphClient);
             }
 

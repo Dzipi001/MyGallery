@@ -79,14 +79,13 @@ namespace OneDrivePhotoBrowser.Controllers
 
             IEnumerable<DriveItem> items;
 
-            var expandString = "thumbnails, children($expand=thumbnails)";
+            var expandString = "children($select=Id, name, Folder)";
 
             // If id isn't set, get the OneDrive root's photos and folders. Otherwise, get those for the specified item ID.
             // Also retrieve the thumbnails for each item if using a consumer client.
             var itemRequest = string.IsNullOrEmpty(id)
                 ? this.graphClient.Me.Drive.Root.Request().Expand(expandString)
                 : this.graphClient.Me.Drive.Items[id].Request().Expand(expandString);
-
             var item = await itemRequest.GetAsync();
             items = item.Children == null
                 ? new List<DriveItem>()
@@ -95,8 +94,13 @@ namespace OneDrivePhotoBrowser.Controllers
             foreach (var child in items)
             {
                 results.Add(new ItemModel(child));
+                //ObservableCollection<ItemModel> recursiveChilds = await GetFolders(child.Id);
+                //foreach (var desc in recursiveChilds)
+                //{
+                  //  results.Add(desc);
+                //}
             }
-
+            
             return results;
         }
 
@@ -126,7 +130,7 @@ namespace OneDrivePhotoBrowser.Controllers
 
             IEnumerable<DriveItem> items;
 
-            var expandString = "thumbnails, children($expand=thumbnails)";
+            var expandString = "children($select=name, Image)";
 
             // If id isn't set, get the OneDrive root's photos. Otherwise, get those for the specified item ID.
             // Also retrieve the thumbnails for each item if using a consumer client.

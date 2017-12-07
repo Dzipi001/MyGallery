@@ -17,8 +17,8 @@
     <EnableDotNetNativeCompatibleProfile>true</EnableDotNetNativeCompatibleProfile>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{A5A43C5B-DE2A-4C0C-9213-0A381AF9435A};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
-    <PackageCertificateThumbprint>E5EFD525CF3A9C5171E2BC89FED0D6307A7DF3F4</PackageCertificateThumbprint>
-    <PackageCertificateKeyFile>OneDrivePhotoBrowser_StoreKey.pfx</PackageCertificateKeyFile>
+    <PackageCertificateThumbprint>8980FBAF5359993FD6355BE025F865AAB026DDB2</PackageCertificateThumbprint>
+    <PackageCertificateKeyFile>OneDrivePhotoBrowser_TemporaryKey.pfx</PackageCertificateKeyFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|ARM'">
     <DebugSymbols>true</DebugSymbols>
@@ -92,6 +92,7 @@
   <ItemGroup>
     <!-- A reference to the entire .Net Framework and Windows SDK are automatically included -->
     <None Include="OneDrivePhotoBrowser_StoreKey.pfx" />
+    <None Include="OneDrivePhotoBrowser_TemporaryKey.pfx" />
     <None Include="project.json" />
   </ItemGroup>
   <ItemGroup>
