@@ -87,7 +87,7 @@ namespace OneDrivePhotoBrowser.Controllers
                 ? this.graphClient.Me.Drive.Root.Request().Expand(expandString)
                 : this.graphClient.Me.Drive.Items[id].Request().Expand(expandString);
             var item = await itemRequest.GetAsync();
-            items = item.Children == null
+                items = item.Children == null
                 ? new List<DriveItem>()
                 : item.Children.CurrentPage.Where(child => child.Folder != null);
 
@@ -122,23 +122,30 @@ namespace OneDrivePhotoBrowser.Controllers
         {
             List<string> results = new List<string>();
 
-            IEnumerable<DriveItem> items;
-
-            var expandString = "children($select=Id, Image)";
-
             var itemRequest = string.IsNullOrEmpty(id)
-                ? this.graphClient.Me.Drive.Root.Request().Expand(expandString)
-                : this.graphClient.Me.Drive.Items[id].Request().Expand(expandString);
-            
-            var item = await itemRequest.GetAsync();
-            items = item.Children == null
-                ? new List<DriveItem>()
-                : item.Children.CurrentPage.Where(child => child.Image != null);
+            ? this.graphClient.Me.Drive.Root.Children.Request()
+            : this.graphClient.Me.Drive.Items[id].Children.Request();
+
+            var items = await itemRequest.Top(1000).GetAsync();
 
             foreach (var child in items)
             {
-                results.Add(child.Id);
+                if (child.Image != null)
+                    results.Add(child.Id);
             }
+
+            do
+            {
+                if (items.NextPageRequest == null)
+                    break;
+
+                items = await items.NextPageRequest.GetAsync();
+                foreach (var child in items)
+                {
+                    if (child.Image != null)
+                        results.Add(child.Id);
+                }
+            } while (items.NextPageRequest != null);
 
             return results;
         }
