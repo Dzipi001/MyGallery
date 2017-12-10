@@ -156,7 +156,7 @@ namespace OneDrivePhotoBrowser
             {
                 await AddUpcomingBatchToActive(true);
             }
-        }s
+        }
 
         /// <summary>
         /// Loads the detail view for the specified item.
