@@ -30,9 +30,9 @@
         <FlipView Name="imgFlipView" ItemsSource="{Binding}" SelectionChanged="ImageFlipView_SelectionChanged" Tapped="ImageFlipView_Tapped" Background="Black">
             <FlipView.ItemTemplate>
                 <DataTemplate>
-                    <Grid>
+                    <ScrollViewer Name="imgScrollViewer" ZoomMode="Enabled" >
                         <Image Source="{Binding Bitmap}"></Image>
-                    </Grid>
+                    </ScrollViewer>
                 </DataTemplate>
             </FlipView.ItemTemplate>
         </FlipView>

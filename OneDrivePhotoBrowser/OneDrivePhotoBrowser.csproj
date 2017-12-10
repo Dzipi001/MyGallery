@@ -91,7 +91,6 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- A reference to the entire .Net Framework and Windows SDK are automatically included -->
-    <None Include="OneDrivePhotoBrowser_StoreKey.pfx" />
     <None Include="OneDrivePhotoBrowser_TemporaryKey.pfx" />
     <None Include="project.json" />
   </ItemGroup>
@@ -120,7 +119,6 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Assets\App\folder.png" />
-    <None Include="Package.StoreAssociation.xml" />
     <Content Include="Properties\Default.rd.xml" />
     <Content Include="Assets\LockScreenLogo.scale-200.png" />
     <Content Include="Assets\SplashScreen.scale-200.png" />

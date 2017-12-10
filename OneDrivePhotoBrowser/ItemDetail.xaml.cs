@@ -44,17 +44,16 @@ namespace OneDrivePhotoBrowser
     /// </summary>
     public sealed partial class ItemDetail : Page
     {
-        private int IMAGES_FLIPVIEW_PERBATCH = 10;
+        private int IMAGES_FLIPVIEW_PERBATCH = 20;
         private int IMAGES_FLIPVIEW_LOADNEXT = 2;
-        private int IMAGES_FLIPVIEW_REMOVEFRONTBATCH = 19;
         private ItemsController itemsController;
         private List<string> AllImageIds = new List<string>();
         private ObservableCollection<ItemModel> ActiveImages = new ObservableCollection<ItemModel>();
         private ObservableCollection<ItemModel> UpcomingImages = new ObservableCollection<ItemModel>();
-        private ObservableCollection<ItemModel> PreviousImages = new ObservableCollection<ItemModel>();
 
 
         private DispatcherTimer slideShowTimer = new DispatcherTimer();
+        private DispatcherTimer timeoutTImer = new DispatcherTimer();
 
         public ItemDetail()
         {
@@ -91,13 +90,13 @@ namespace OneDrivePhotoBrowser
                 });
 
             await LoadImageBatch(ActiveImages);
-
+            ResetTimeoutTImer();
 
             UpcomingImages = await PopulateImageBatch();
-            AddUpcomingBatchToActive();
-            //SetTimer(5, true);
+            await AddUpcomingBatchToActive(false);
 
             progressRing.IsActive = false;
+
         }
 
         private async Task LoadImageBatch(ObservableCollection<ItemModel> batch)
@@ -123,7 +122,7 @@ namespace OneDrivePhotoBrowser
             return result;
         }
 
-        private async Task AddUpcomingBatchToActive()
+        private async Task AddUpcomingBatchToActive(bool deleteFirstBatch)
         {
             if (UpcomingImages.Count == 0)
                 UpcomingImages = await PopulateImageBatch();
@@ -135,10 +134,13 @@ namespace OneDrivePhotoBrowser
                     await LoadImage(image);
             }
 
-            for (int index = 0; index < IMAGES_FLIPVIEW_PERBATCH; index++)
+            if (deleteFirstBatch)
             {
-                if (ActiveImages.Count > 0)
-                    ActiveImages.RemoveAt(0);
+                for (int index = 0; index < IMAGES_FLIPVIEW_PERBATCH; index++)
+                {
+                    if (ActiveImages.Count > 0)
+                        ActiveImages.RemoveAt(0);
+                }
             }
 
             this.DataContext = ActiveImages;
@@ -150,13 +152,10 @@ namespace OneDrivePhotoBrowser
 
         private async void ImageFlipView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            // if at the last N images of the flipview, add the next batch to the Active;
-            // if Active count is more than MAX and we are at last M images then remove first IMAGES_PER_BATCH from batch;
             if (imgFlipView.SelectedIndex == IMAGES_FLIPVIEW_PERBATCH*2 - IMAGES_FLIPVIEW_LOADNEXT)
             {
-                await AddUpcomingBatchToActive();
+                await AddUpcomingBatchToActive(true);
             }
-
         }
 
         /// <summary>
@@ -194,21 +193,41 @@ namespace OneDrivePhotoBrowser
             }
         }
 
+        private void ResetTimeoutTImer()
+        {
+            timeoutTImer.Interval = TimeSpan.FromSeconds(10);
+
+            timeoutTImer.Tick += (o, a) =>
+            {
+                FlipImageForward();
+                SetTimer(5, true);
+                timeoutTImer.Stop();
+            };
+
+            timeoutTImer.Start();
+        }
+
+
         private void SetTimer(int seconds, bool start)
         {
             slideShowTimer.Interval = TimeSpan.FromSeconds(seconds);
             slideShowTimer.Tick += (o, a) =>
             {
-                int newIndex = imgFlipView.SelectedIndex + 1;
-                if (newIndex >= imgFlipView.Items.Count || newIndex < 0)
-                {
-                    newIndex = 0;
-                }
-                imgFlipView.SelectedIndex = newIndex;
+                FlipImageForward();
             };
 
             if (start)
                 slideShowTimer.Start();
+        }
+
+        private void FlipImageForward()
+        {
+            int newIndex = imgFlipView.SelectedIndex + 1;
+            if (newIndex >= imgFlipView.Items.Count || newIndex < 0)
+            {
+                newIndex = 0;
+            }
+            imgFlipView.SelectedIndex = newIndex;
         }
 
 
