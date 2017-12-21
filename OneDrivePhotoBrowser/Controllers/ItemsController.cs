@@ -29,6 +29,7 @@ namespace OneDrivePhotoBrowser.Controllers
     using System.Linq;
     using System.Threading.Tasks;
     using Microsoft.Graph;
+    using System;
 
     public class ItemsController
     {
@@ -40,40 +41,9 @@ namespace OneDrivePhotoBrowser.Controllers
             this.graphClient = graphClient;
         }
 
-        /// <summary>
-        /// Gets the child folders and photos of the specified item ID.
-        /// </summary>
-        /// <param name="id">The ID of the parent item.</param>
-        /// <returns>The child folders and photos of the specified item ID.</returns>
-        public async Task<ObservableCollection<ItemModel>> GetImagesAndFolders(string id)
-        {
-            ObservableCollection<ItemModel> results = new ObservableCollection<ItemModel>();
 
-            IEnumerable<DriveItem> items;
-
-            var expandString = "thumbnails, children($expand=thumbnails)";
-
-            // If id isn't set, get the OneDrive root's photos and folders. Otherwise, get those for the specified item ID.
-            // Also retrieve the thumbnails for each item if using a consumer client.
-            var itemRequest = string.IsNullOrEmpty(id)
-                ? this.graphClient.Me.Drive.Root.Request().Expand(expandString)
-                : this.graphClient.Me.Drive.Items[id].Request().Expand(expandString);
-
-            var item = await itemRequest.GetAsync();
-            items = item.Children == null
-                ? new List<DriveItem>()
-                : item.Children.CurrentPage.Where(child => child.Folder != null || child.Image != null);
-
-            foreach (var child in items)
-            {
-                results.Add(new ItemModel(child));
-            }
-
-            return results;
-        }
-
-
-        public async Task<ObservableCollection<ItemModel>> GetFolders(string id)
+        // Method that gets only children (top level) folders of a folder
+        public async Task<ObservableCollection<ItemModel>> GetChildrenFolders(string id)
         {
             ObservableCollection<ItemModel> results = new ObservableCollection<ItemModel>();
 
@@ -85,7 +55,33 @@ namespace OneDrivePhotoBrowser.Controllers
             // Also retrieve the thumbnails for each item if using a consumer client.
             var itemRequest = string.IsNullOrEmpty(id)
                 ? this.graphClient.Me.Drive.Root.Request().Expand(expandString)
+                : this.graphClient.Me.Drive.Items[id].Request().Expand(expandString); ;
+            var item = await itemRequest.GetAsync();
+            items = item.Children == null
+            ? new List<DriveItem>()
+            : item.Children.CurrentPage.Where(child => child.Folder != null);
+
+            foreach (var child in items)
+            {
+                results.Add(new ItemModel(child));
+            }
+
+            return results;
+        }
+
+
+
+        public async Task GetRemainingImages(string id, Queue<string> upcomingImageIds)
+        {
+            IEnumerable<DriveItem> items;
+            List<string> NewImageIds = new List<string>();
+
+            var expandString = "children($select=Id, name, Folder)";
+
+            var itemRequest = string.IsNullOrEmpty(id)
+                ? this.graphClient.Me.Drive.Root.Request().Expand(expandString)
                 : this.graphClient.Me.Drive.Items[id].Request().Expand(expandString);
+
             var item = await itemRequest.GetAsync();
                 items = item.Children == null
                 ? new List<DriveItem>()
@@ -93,40 +89,32 @@ namespace OneDrivePhotoBrowser.Controllers
 
             foreach (var child in items)
             {
-                results.Add(new ItemModel(child));
-                //ObservableCollection<ItemModel> recursiveChilds = await GetFolders(child.Id);
-                //foreach (var desc in recursiveChilds)
-                //{
-                  //  results.Add(desc);
-                //}
+
+                NewImageIds = await GetAllImagesFromFolder(child.Id);
+               
+                foreach (string imageId in NewImageIds)
+                {
+                    upcomingImageIds.Enqueue(imageId);
+                }
+
+                await GetRemainingImages(child.Id, upcomingImageIds);
             }
-            
-            return results;
         }
 
-
-        public async Task<List<string>> GetImagesIds(string id)
-        {
-            List<string> results = new List<string>();
-
-            ObservableCollection<ItemModel> folders = await GetFolders(id);
-            foreach (ItemModel folder in folders)
-            {
-                results.AddRange(await GetImages(folder.Id));
-            }
-
-            return results;
-        }
-
-        public async Task<List<string>> GetImages(string id)
+        /// <summary>
+        /// Returns all image ids from specified folder
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        private async Task <List<string>> GetAllImagesFromFolder(string id)
         {
             List<string> results = new List<string>();
 
             var itemRequest = string.IsNullOrEmpty(id)
             ? this.graphClient.Me.Drive.Root.Children.Request()
             : this.graphClient.Me.Drive.Items[id].Children.Request();
-
-            var items = await itemRequest.Top(1000).GetAsync();
+            
+            var items = await itemRequest.GetAsync();
 
             foreach (var child in items)
             {
@@ -134,7 +122,86 @@ namespace OneDrivePhotoBrowser.Controllers
                     results.Add(child.Id);
             }
 
-            do
+            //We need to check if there are more images, because not all childred of the folder (minimages+constant) are necesarily images
+            while (items.NextPageRequest != null)
+            {
+                items = await items.NextPageRequest.GetAsync();
+                foreach (var child in items)
+                {
+                    if (child.Image != null)
+                        results.Add(child.Id);
+                }
+            }
+
+            return results;
+        }
+
+
+        // Returns only minimal number of images under a certan tree structure
+        // Also updates Completed folders in order to know which folders should not be revisited while looking for more images later
+        public async Task<List<string>> GetInitialSetOfImagesIds(string id, int minImages)
+        {
+            List<string> results = new List<string>();
+
+
+            // look at top level folders first
+            ObservableCollection<ItemModel> folders = await GetChildrenFolders(id);
+            foreach (ItemModel folder in folders)
+            {
+                if (results.Count < minImages)
+                {
+                    results.AddRange(await GetImages(folder.Id, minImages));
+                }
+                else
+                    break;
+            }
+
+            // if we don't have enough images yet, repeat RECURSIVELY for each folder and its subfolders until image limit reached
+            if (results.Count < minImages)
+            {
+                foreach (ItemModel folder in folders)
+                {
+                    if (results.Count < minImages)
+                    {
+                        //recursive call looking for remaining count of images (Count-minImages)
+                        results.AddRange(await GetInitialSetOfImagesIds(folder.Id, results.Count - minImages));
+                    }
+                }
+            }
+
+            return results;
+        }
+
+
+
+
+        /// <summary>
+        /// Get minimum number of images from a specified folder (id)
+        /// If all images from the folder have been fetched with that call add folder to CompletedFolders
+        /// </summary>
+        /// <param name="id"></param>
+        /// <param name="minImages"></param>
+        /// <param name="CompletedFolders"></param>
+        /// <returns></returns>
+        public async Task<List<string>> GetImages(string id, int minImages)
+        {
+            List<string> results = new List<string>();
+
+            var itemRequest = string.IsNullOrEmpty(id)
+            ? this.graphClient.Me.Drive.Root.Children.Request()
+            : this.graphClient.Me.Drive.Items[id].Children.Request();
+
+            // TODO maybe - replace hard coded number 100 with constant value 
+            var items = await itemRequest.Top(100).GetAsync();
+
+            foreach (var child in items)
+            {
+                if (child.Image != null)
+                    results.Add(child.Id);
+            }
+
+            //We need to check if there are more images, because not all childred of the folder (minimages+constant) are necesarily images
+            while (results.Count<minImages)
             {
                 if (items.NextPageRequest == null)
                     break;
@@ -145,12 +212,18 @@ namespace OneDrivePhotoBrowser.Controllers
                     if (child.Image != null)
                         results.Add(child.Id);
                 }
-            } while (items.NextPageRequest != null);
+            }
 
             return results;
         }
 
 
+
+        /// <summary>
+        /// Gets the specified Image DriveItem
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
         public async Task<ItemModel> GetImage(string id)
         {
             ObservableCollection<ItemModel> result = new ObservableCollection<ItemModel>();

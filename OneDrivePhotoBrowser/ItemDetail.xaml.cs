@@ -38,22 +38,28 @@ namespace OneDrivePhotoBrowser
     using System.Collections.ObjectModel;
     using System.Collections.Generic;
     using System.Numerics;
+    using Windows.UI.Xaml.Media;
+    using Windows.Storage;
 
     /// <summary>
     /// An empty page that can be used on its own or navigated to within a Frame.
     /// </summary>
     public sealed partial class ItemDetail : Page
     {
-        private int IMAGES_FLIPVIEW_PERBATCH = 20;
+        private int IMAGES_FLIPVIEW_PERBATCH = 10;
         private int IMAGES_FLIPVIEW_LOADNEXT = 2;
         private ItemsController itemsController;
         private List<string> AllImageIds = new List<string>();
+        private Queue<string> UpcomingImageIds = new Queue<string>();
         private ObservableCollection<ItemModel> ActiveImages = new ObservableCollection<ItemModel>();
-        private ObservableCollection<ItemModel> UpcomingImages = new ObservableCollection<ItemModel>();
-
+        private ObservableCollection<ItemModel> NextImageBatch = new ObservableCollection<ItemModel>();
 
         private DispatcherTimer slideShowTimer = new DispatcherTimer();
         private DispatcherTimer timeoutTImer = new DispatcherTimer();
+
+        private Settings appSettings;
+        private CategoryManager categoryManager;
+
 
         public ItemDetail()
         {
@@ -63,6 +69,10 @@ namespace OneDrivePhotoBrowser
 
         private async void ItemTile_Loaded(object sender, RoutedEventArgs e)
         {
+            // load current app settings
+            appSettings.Load();
+            categoryManager.Load();
+
             if (this.itemsController == null)
             {
                 this.itemsController = new ItemsController(((App)Application.Current).GraphClient);
@@ -70,43 +80,37 @@ namespace OneDrivePhotoBrowser
 
             var last = ((App)Application.Current).NavigationStack.Last();
             
-            AllImageIds = await this.itemsController.GetImagesIds(null);
+            AllImageIds = await this.itemsController.GetInitialSetOfImagesIds(null, IMAGES_FLIPVIEW_PERBATCH*3);
 
             if (AllImageIds.Count == 0)
                 return;
 
             ActiveImages = await PopulateImageBatch();
-        
+
             if (ActiveImages.Count == 0)
                 return;
 
             this.DataContext = ActiveImages;
 
-            await Dispatcher.RunAsync(
-                CoreDispatcherPriority.Low,
-                () =>
-                {
-                    imgFlipView.SelectedIndex = 0;
-                });
+            flipView_Slideshow.SelectedIndex = 0;
 
-            await LoadImageBatch(ActiveImages);
-            ResetTimeoutTImer();
-
-            UpcomingImages = await PopulateImageBatch();
-            await AddUpcomingBatchToActive(false);
-
+            // Yes, we will still be loading in the background, but intial n images should be in the slideshow by now 
             progressRing.IsActive = false;
 
+            // Start the timeout timer. Once it ticks the slideshow timer starts
+            ResetTimeoutTimer();
+
+            NextImageBatch = await PopulateImageBatch();
+            await AddUpcomingBatchToActive(false);
+
+            await this.itemsController.GetRemainingImages(null, UpcomingImageIds);
         }
 
-        private async Task LoadImageBatch(ObservableCollection<ItemModel> batch)
-        {
-            foreach (ItemModel image in batch)
-            {
-                await this.LoadImage(image);
-            }
-        }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
         private async Task<ObservableCollection<ItemModel>> PopulateImageBatch()
         {
             ObservableCollection<ItemModel> result = new ObservableCollection<ItemModel>();
@@ -116,18 +120,26 @@ namespace OneDrivePhotoBrowser
             {
                 int selectedImageIndex = rnd.Next(0, AllImageIds.Count-1);
                 ItemModel nextRandomImage = await this.itemsController.GetImage(AllImageIds[selectedImageIndex]);
+                if (nextRandomImage.Bitmap == null)
+                    await LoadImage(nextRandomImage);
                 result.Add(nextRandomImage);
             }
 
             return result;
         }
 
+
+        /// <summary>
+        /// Add and load next batch of images to Slideshow (FlipView), and if needed remove the batch from the beggining
+        /// </summary>
+        /// <param name="deleteFirstBatch"></param>
+        /// <returns></returns>
         private async Task AddUpcomingBatchToActive(bool deleteFirstBatch)
         {
-            if (UpcomingImages.Count == 0)
-                UpcomingImages = await PopulateImageBatch();
+            if (NextImageBatch.Count == 0)
+                NextImageBatch = await PopulateImageBatch();
 
-            foreach (ItemModel image in UpcomingImages)
+            foreach (ItemModel image in NextImageBatch)
             {
                 ActiveImages.Add(image);
                 if (image.Bitmap == null)
@@ -145,21 +157,47 @@ namespace OneDrivePhotoBrowser
 
             this.DataContext = ActiveImages;
 
-            UpcomingImages.Clear();
-            UpcomingImages = await PopulateImageBatch();
+            NextImageBatch.Clear();
+            NextImageBatch = await PopulateImageBatch();    
         }
 
 
+        /// <summary>
+        /// What happens when image is flipped in Slideshow:
+        /// if we need to load next batch of images
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private async void ImageFlipView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (imgFlipView.SelectedIndex == IMAGES_FLIPVIEW_PERBATCH*2 - IMAGES_FLIPVIEW_LOADNEXT)
+            flipView_Slideshow.UpdateLayout();
+
+            if (flipView_Slideshow.SelectedIndex == IMAGES_FLIPVIEW_PERBATCH*2 - IMAGES_FLIPVIEW_LOADNEXT)
             {
                 await AddUpcomingBatchToActive(true);
             }
+
+            var flip = flipView_Slideshow as FlipView;
+            var flipIndex = flip.SelectedIndex;
+
+            ScrollViewer currentScrollViewer = findElementInItemsControlItemAtIndex(flip, flipIndex, "scrollViewer_ForImage") as ScrollViewer;
+            Windows.UI.Xaml.Controls.Image currentImage = findElementInItemsControlItemAtIndex(flip, flipIndex, "image_CurrentImage") as Windows.UI.Xaml.Controls.Image;
+
+            if (currentImage == null || currentScrollViewer == null)
+                return;
+            
+            if (!(currentImage.ActualWidth > currentScrollViewer.ViewportWidth) && !(currentImage.ActualHeight > currentScrollViewer.ViewportHeight))
+            {
+                return;
+            }
+
+            // If the image is larger than the screen, zoom it out.
+            var zoomFactor = (float)Math.Min(currentScrollViewer.ViewportWidth / currentImage.ActualWidth, currentScrollViewer.ViewportHeight / currentImage.ActualHeight);
+            currentScrollViewer.ChangeView(0, 0, zoomFactor);
         }
 
         /// <summary>
-        /// Loads the detail view for the specified item.
+        /// Loads the actual Bitmap that is displayed in SlideShow for the image item
         /// </summary>
         /// <param name="item">The item to load.</param>
         /// <returns>The task to await.</returns>
@@ -193,44 +231,74 @@ namespace OneDrivePhotoBrowser
             }
         }
 
-        private void ResetTimeoutTImer()
+
+        /// <summary>
+        /// Setting timeout timer that measures for last user manipulation until the slideshow shoud start 
+        /// </summary>
+        private void ResetTimeoutTimer()
         {
             timeoutTImer.Interval = TimeSpan.FromSeconds(10);
 
             timeoutTImer.Tick += (o, a) =>
             {
+                // do the first image flip since we already timed out
                 FlipImageForward();
-                SetTimer(5, true);
+                SetImageFlipTimer(5, true);
                 timeoutTImer.Stop();
+
+                while (UpcomingImageIds.Count > 0)
+                {
+                    string id = UpcomingImageIds.Dequeue();
+                    if (!AllImageIds.Contains(id))
+                        AllImageIds.Add(id);
+                }
             };
 
             timeoutTImer.Start();
         }
 
 
-        private void SetTimer(int seconds, bool start)
+        /// <summary>
+        /// Sets up the timer that flips th eimage to the next one
+        /// </summary>
+        /// <param name="seconds"></param>
+        /// <param name="start"></param>
+        private void SetImageFlipTimer(int seconds, bool start)
         {
             slideShowTimer.Interval = TimeSpan.FromSeconds(seconds);
             slideShowTimer.Tick += (o, a) =>
             {
                 FlipImageForward();
+                while (UpcomingImageIds.Count > 0)
+                {
+                    AllImageIds.Add(UpcomingImageIds.Dequeue());
+                }
             };
 
             if (start)
                 slideShowTimer.Start();
         }
 
+
+        /// <summary>
+        /// Flips to the next image in the Slidehow
+        /// </summary>
         private void FlipImageForward()
         {
-            int newIndex = imgFlipView.SelectedIndex + 1;
-            if (newIndex >= imgFlipView.Items.Count || newIndex < 0)
+            int newIndex = flipView_Slideshow.SelectedIndex + 1;
+            if (newIndex >= flipView_Slideshow.Items.Count || newIndex < 0)
             {
                 newIndex = 0;
             }
-            imgFlipView.SelectedIndex = newIndex;
+            flipView_Slideshow.SelectedIndex = newIndex;
         }
 
 
+        /// <summary>
+        /// What happens then the Slideshow UI (Flipview is tapped
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void ImageFlipView_Tapped(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e)
         {
             if (GalleryBar.Visibility == Visibility.Visible)
@@ -248,6 +316,11 @@ namespace OneDrivePhotoBrowser
 
         }
 
+
+        /// <summary>
+        /// Shows/Hides UI around the image in the Slideshow
+        /// </summary>
+        /// <param name="visible"></param>
         private void ShowSlideShowUI(bool visible)
         {
             if(visible)
@@ -258,7 +331,72 @@ namespace OneDrivePhotoBrowser
             {
                 GalleryBar.Visibility = Visibility.Collapsed;
             }
-            
+        }
+
+        /// <summary>
+        /// Finds visual control with specified name on the ItemsControl.
+        ///
+        /// </summary>
+        /// <param name="itemsControl"></param>
+        /// <param name="itemOfIndexToFind"></param>
+        /// <param name="nameOfControlToFind"></param>
+        /// <returns></returns>
+        DependencyObject findElementInItemsControlItemAtIndex(ItemsControl itemsControl, int itemOfIndexToFind, string nameOfControlToFind)
+        {
+            if (itemOfIndexToFind < 0)
+                return null;
+
+            if (itemOfIndexToFind >= itemsControl.Items.Count) return null;
+
+            DependencyObject depObj = null;
+            object o = itemsControl.Items[itemOfIndexToFind];
+            if (o != null)
+            {
+                var item = itemsControl.ContainerFromItem(o);
+                
+                if (item != null)
+                {
+                    depObj = getVisualTreeChild(item, nameOfControlToFind);
+                    return depObj;
+                }
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Helper method for findElementInItemsControlItemAtIndex
+        /// </summary>
+        /// <param name="obj"></param>
+        /// <param name="name"></param>
+        /// <returns></returns>
+        DependencyObject getVisualTreeChild(DependencyObject obj, String name)
+        {
+            DependencyObject dependencyObject = null;
+            int childrenCount = VisualTreeHelper.GetChildrenCount(obj);
+            for (int i = 0; i < childrenCount; i++)
+            {
+                var oChild = VisualTreeHelper.GetChild(obj, i);
+                var childElement = oChild as FrameworkElement;
+                if (childElement != null)
+                {
+                    //Code to take care of Paragraph/Run
+                    if (childElement is RichTextBlock || childElement is TextBlock)
+                    {
+                        dependencyObject = childElement.FindName(name) as DependencyObject;
+                        if (dependencyObject != null)
+                            return dependencyObject;
+                    }
+
+                    if (childElement.Name == name)
+                    {
+                        return childElement;
+                    }
+                }
+                dependencyObject = getVisualTreeChild(oChild, name);
+                if (dependencyObject != null)
+                    return dependencyObject;
+            }
+            return dependencyObject;
         }
     }
 }
