@@ -27,16 +27,17 @@
         </CommandBar>
     </Page.BottomAppBar>
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <FlipView Name="imgFlipView" ItemsSource="{Binding}" SelectionChanged="ImageFlipView_SelectionChanged" Tapped="ImageFlipView_Tapped" Background="Black">
+        <FlipView Name="flipView_Slideshow" ItemsSource="{Binding}" SelectionChanged="ImageFlipView_SelectionChanged" Tapped="ImageFlipView_Tapped" Background="Black">
             <FlipView.ItemTemplate>
                 <DataTemplate>
-                    <ScrollViewer Name="imgScrollViewer" ZoomMode="Enabled" >
-                        <Image Source="{Binding Bitmap}"></Image>
+                    <ScrollViewer Name="scrollViewer_ForImage" ZoomMode="Enabled" >
+                        <Image Name="image_CurrentImage" Source="{Binding Bitmap}"></Image>
                     </ScrollViewer>
                 </DataTemplate>
             </FlipView.ItemTemplate>
         </FlipView>
         <ProgressRing Name="progressRing" IsActive="True" Width="120" Height="120"></ProgressRing>
         <StackPanel HorizontalAlignment="Left" Height="254" Margin="0,746,0,0" VerticalAlignment="Top" Width="1500"/>
+        <TextBlock x:Name="textblock_test" HorizontalAlignment="Left" Margin="33,33,0,0" TextWrapping="Wrap" Text="This is a test" VerticalAlignment="Top" Width="231" SelectionHighlightColor="#FFB75341" Foreground="#FFF5F4F4"/>
     </Grid>
 </Page>
