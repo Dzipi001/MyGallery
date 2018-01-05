@@ -54,24 +54,31 @@ namespace OneDrivePhotoBrowser
         private ObservableCollection<ItemModel> ActiveImages = new ObservableCollection<ItemModel>();
         private ObservableCollection<ItemModel> NextImageBatch = new ObservableCollection<ItemModel>();
 
+        private ItemModel currentItem = null;
+
         private DispatcherTimer slideShowTimer = new DispatcherTimer();
-        private DispatcherTimer timeoutTImer = new DispatcherTimer();
+        private DispatcherTimer timeoutTimer = new DispatcherTimer();
 
         private Settings appSettings;
         private CategoryManager categoryManager;
+
 
 
         public ItemDetail()
         {
             this.InitializeComponent();
             this.Loaded += ItemTile_Loaded;
+
         }
 
         private async void ItemTile_Loaded(object sender, RoutedEventArgs e)
         {
+            slideShowTimer.Tick += slideShowTimer_Tick;
+            timeoutTimer.Tick += timeoutTimer_Tick;
+
             // load current app settings
-            appSettings.Load();
-            categoryManager.Load();
+            //appSettings.Load();
+            //categoryManager.Load();
 
             if (this.itemsController == null)
             {
@@ -93,7 +100,7 @@ namespace OneDrivePhotoBrowser
             this.DataContext = ActiveImages;
 
             flipView_Slideshow.SelectedIndex = 0;
-
+            
             // Yes, we will still be loading in the background, but intial n images should be in the slideshow by now 
             progressRing.IsActive = false;
 
@@ -105,7 +112,6 @@ namespace OneDrivePhotoBrowser
 
             await this.itemsController.GetRemainingImages(null, UpcomingImageIds);
         }
-
 
         /// <summary>
         /// 
@@ -119,10 +125,12 @@ namespace OneDrivePhotoBrowser
             for (int i = 0; i < IMAGES_FLIPVIEW_PERBATCH; i++)
             {
                 int selectedImageIndex = rnd.Next(0, AllImageIds.Count-1);
+
                 ItemModel nextRandomImage = await this.itemsController.GetImage(AllImageIds[selectedImageIndex]);
                 if (nextRandomImage.Bitmap == null)
                     await LoadImage(nextRandomImage);
-                result.Add(nextRandomImage);
+                if (!result.Contains(nextRandomImage))
+                    result.Add(nextRandomImage);
             }
 
             return result;
@@ -136,19 +144,25 @@ namespace OneDrivePhotoBrowser
         /// <returns></returns>
         private async Task AddUpcomingBatchToActive(bool deleteFirstBatch)
         {
+            int numberOfAddedImages = 0;
+
             if (NextImageBatch.Count == 0)
                 NextImageBatch = await PopulateImageBatch();
 
             foreach (ItemModel image in NextImageBatch)
             {
-                ActiveImages.Add(image);
-                if (image.Bitmap == null)
-                    await LoadImage(image);
+                if (!ActiveImages.Contains(image))
+                {
+                    ActiveImages.Add(image);
+                    if (image.Bitmap == null)
+                        await LoadImage(image);
+                    numberOfAddedImages++;
+                }
             }
 
             if (deleteFirstBatch)
             {
-                for (int index = 0; index < IMAGES_FLIPVIEW_PERBATCH; index++)
+                for (int index = 0; index < numberOfAddedImages; index++)
                 {
                     if (ActiveImages.Count > 0)
                         ActiveImages.RemoveAt(0);
@@ -185,15 +199,43 @@ namespace OneDrivePhotoBrowser
 
             if (currentImage == null || currentScrollViewer == null)
                 return;
-            
+
             if (!(currentImage.ActualWidth > currentScrollViewer.ViewportWidth) && !(currentImage.ActualHeight > currentScrollViewer.ViewportHeight))
             {
-                return;
+
+            }
+            else
+            {
+                // If the image is larger than the screen, zoom it out.
+                var zoomFactor = (float)Math.Min(currentScrollViewer.ViewportWidth / currentImage.ActualWidth, currentScrollViewer.ViewportHeight / currentImage.ActualHeight);
+                currentScrollViewer.ChangeView(0, 0, zoomFactor);
             }
 
-            // If the image is larger than the screen, zoom it out.
-            var zoomFactor = (float)Math.Min(currentScrollViewer.ViewportWidth / currentImage.ActualWidth, currentScrollViewer.ViewportHeight / currentImage.ActualHeight);
-            currentScrollViewer.ChangeView(0, 0, zoomFactor);
+            object o = flipView_Slideshow.SelectedItem;
+            currentItem = o as ItemModel;
+            SetCurrentImageInfo(currentItem);
+
+            textblock_CurrentImageIndex.Text = flipView_Slideshow.SelectedIndex.ToString();
+        }
+
+        private void SetCurrentImageInfo(ItemModel currentItem)
+        {
+            SetTextblockString(textblock_ImageDateTaken, currentItem.TakenDateTime);
+            SetTextblockString(textblock_ImageCameraMakeModel, currentItem.CameraMake + ", " + currentItem.CameraModel);
+            SetTextblockString(textblock_ImageLocation, currentItem.Location);
+            SetTextblockString(textblock_ImageName, currentItem.Name);
+            SetTextblockString(textblock_ImagePathOnCloud, currentItem.PathInCloud);
+            SetTextblockString(textblock_ImageResolution, currentItem.ImageHeight + " * " + currentItem.ImageHeight);
+        }
+
+        private void SetTextblockString(TextBlock textBl, string text)
+        {
+            if (text == null)
+                textBl.Text = String.Empty;
+            else
+            {
+                textBl.Text = text;
+            }
         }
 
         /// <summary>
@@ -237,24 +279,9 @@ namespace OneDrivePhotoBrowser
         /// </summary>
         private void ResetTimeoutTimer()
         {
-            timeoutTImer.Interval = TimeSpan.FromSeconds(10);
+            timeoutTimer.Interval = TimeSpan.FromSeconds(5);
+            timeoutTimer.Start();
 
-            timeoutTImer.Tick += (o, a) =>
-            {
-                // do the first image flip since we already timed out
-                FlipImageForward();
-                SetImageFlipTimer(5, true);
-                timeoutTImer.Stop();
-
-                while (UpcomingImageIds.Count > 0)
-                {
-                    string id = UpcomingImageIds.Dequeue();
-                    if (!AllImageIds.Contains(id))
-                        AllImageIds.Add(id);
-                }
-            };
-
-            timeoutTImer.Start();
         }
 
 
@@ -266,19 +293,15 @@ namespace OneDrivePhotoBrowser
         private void SetImageFlipTimer(int seconds, bool start)
         {
             slideShowTimer.Interval = TimeSpan.FromSeconds(seconds);
-            slideShowTimer.Tick += (o, a) =>
-            {
-                FlipImageForward();
-                while (UpcomingImageIds.Count > 0)
-                {
-                    AllImageIds.Add(UpcomingImageIds.Dequeue());
-                }
-            };
-
             if (start)
                 slideShowTimer.Start();
         }
 
+
+        private void StopImageFlipTimer()
+        {
+            slideShowTimer.Stop();
+        }
 
         /// <summary>
         /// Flips to the next image in the Slidehow
@@ -304,10 +327,13 @@ namespace OneDrivePhotoBrowser
             if (GalleryBar.Visibility == Visibility.Visible)
             {
                 ShowSlideShowUI(false);
+                ResetTimeoutTimer();
             }
             else
             {
                 ShowSlideShowUI(true);
+                StopImageFlipTimer();
+                //ResetTimeoutTimer();
             }
         }
 
@@ -326,10 +352,13 @@ namespace OneDrivePhotoBrowser
             if(visible)
             {
                 GalleryBar.Visibility = Visibility.Visible;
+                gridImageInfo.Visibility = Visibility.Visible;
+
             }
             else
             {
                 GalleryBar.Visibility = Visibility.Collapsed;
+                gridImageInfo.Visibility = Visibility.Collapsed;
             }
         }
 
@@ -397,6 +426,32 @@ namespace OneDrivePhotoBrowser
                     return dependencyObject;
             }
             return dependencyObject;
+        }
+
+        private void timeoutTimer_Tick(object sender, object e)
+        {
+            ShowSlideShowUI(false);
+
+            // do the first image flip since we already timed out
+            FlipImageForward();
+            SetImageFlipTimer(5, true);
+            timeoutTimer.Stop();
+
+            while (UpcomingImageIds.Count > 0)
+            {
+                string id = UpcomingImageIds.Dequeue();
+                if (!AllImageIds.Contains(id))
+                    AllImageIds.Add(id);
+            }
+        }
+
+        private void slideShowTimer_Tick(object sender, object e)
+        {
+            FlipImageForward();
+            while (UpcomingImageIds.Count > 0)
+            {
+                AllImageIds.Add(UpcomingImageIds.Dequeue());
+            }
         }
     }
 }
