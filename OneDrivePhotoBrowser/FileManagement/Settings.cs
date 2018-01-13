@@ -1,6 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using Windows.Storage;
+using System.IO;
+using System.Collections.ObjectModel;
+using OneDrivePhotoBrowser.Models;
+using Microsoft.Graph;
+using System.Text;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace OneDrivePhotoBrowser
 {
@@ -21,7 +28,6 @@ namespace OneDrivePhotoBrowser
             ActiveCategory = String.Empty;
             ActiveSubCategory = String.Empty;
             Mode = AppMode.RANDOM;
-
         }
 
         public void Load()
@@ -47,6 +53,59 @@ namespace OneDrivePhotoBrowser
             roamingSettings.Values["ActiveSubCategory"] = ActiveSubCategory;
             roamingSettings.Values["Mode"] = Mode.ToString();
         }
+
+
+        /// <summary>
+        /// adds a picture to corresponding category,
+        /// if it already exists in that category it won't do anything
+        /// </summary>
+        /// <param name="picid"></param>
+        /// <param name="category"></param>
+        public async void WritePicIdToFile(string picid, string category)
+        {
+            if (picid == null)
+            { return; }
+            if (category == null)
+            { return; }
+
+            string P = picid;
+            string C = category;
+            List<string> picids = new List<string>();
+            picids.Clear();
+            picids = await LoadPicInCurrentMode(C);
+            if (!picids.Contains(P))
+            {
+                Windows.Storage.StorageFolder storageFolder =
+                Windows.Storage.ApplicationData.Current.LocalFolder;
+                Windows.Storage.StorageFile sampleFile =
+                    await storageFolder.CreateFileAsync(C + "Pic.txt",
+                        Windows.Storage.CreationCollisionOption.OpenIfExists);
+                await Windows.Storage.FileIO.AppendTextAsync(sampleFile, P + "\r\n");
+            }
+
+            
+        }
+
+       /// <summary>
+       /// Returns a List<string> of pictures that are in current mode
+       /// </summary>
+       /// <param name="mode"></param>
+       /// <returns></returns>
+        public async Task<List<string>> LoadPicInCurrentMode(string mode)
+        {
+            List<string> picids = new List<string>();
+            picids.Clear();
+            var folder = Windows.Storage.ApplicationData.Current.LocalFolder;
+            var file = await folder.GetFileAsync(mode + "Pic.txt");
+            var readFile = await Windows.Storage.FileIO.ReadLinesAsync(file);
+            foreach (var line in readFile)
+            {
+                picids.Add(line);
+            }
+            return picids;
+        }
     }
+
+
 
 }

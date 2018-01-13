@@ -9,14 +9,14 @@
     mc:Ignorable="d">
     <Page.BottomAppBar>
         <CommandBar Name="GalleryBar" Visibility="Collapsed" IsSticky="False">
-            <AppBarToggleButton Icon="AllApps"  Label="Select Album" Click="AppBarButton_Click"/>
-            <AppBarToggleButton Icon="Play" Label="Start Slideshow" Click="AppBarButton_Click"/>
+            
+            <AppBarButton Icon="Like" Name="Liked" Label="Like Image" Click="LikeButton_Click"/>
+            <AppBarButton Icon="Dislike" Name="DisLiked" Label="Dislike Image" Click="DisLikeButton_Click"/>
             <AppBarSeparator/>
-            <AppBarButton Icon="Like" Label="Like Image" Click="AppBarButton_Click"/>
-            <AppBarButton Icon="Dislike" Label="Dislike Image" Click="AppBarButton_Click"/>
             <CommandBar.SecondaryCommands>
-                <AppBarButton Icon="NewFolder" Label="New Album" Click="AppBarButton_Click"/>
-                <AppBarButton Icon="Folder" Label="More Albums" Click="AppBarButton_Click"/>
+                <AppBarButton Icon="Folder" Label="RandomMode" Click="RandomMode_Click"/>
+                <AppBarButton Icon="Folder" Label="LikedMode" Click="LikedMode_Click"/>
+                <AppBarButton Icon="Folder" Label="DislikedMode" Click="DislikedMode_Click"/>
             </CommandBar.SecondaryCommands>
 
             <CommandBar.Content>
@@ -42,22 +42,23 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
-                <RowDefinition Height="150" />
                 <RowDefinition Height="100" />
-                <RowDefinition Height="100" />
-                <RowDefinition Height="100" />
-                <RowDefinition Height="100" />
-                <RowDefinition Height="100" />
-                <RowDefinition Height="100" />
-                <RowDefinition Height="100" />
+                <RowDefinition Height="60" />
+                <RowDefinition Height="60" />
+                <RowDefinition Height="60" />
+                <RowDefinition Height="60" />
+                <RowDefinition Height="60" />
+                <RowDefinition Height="60" />
+                <RowDefinition Height="60" />
             </Grid.RowDefinitions>
-            <TextBlock Name="textblock_Info" Text="IMAGE INFO" Foreground="White" Grid.Column="0" Grid.Row="0" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+            <TextBlock Name="textblock_Info" Text="IMAGE INFO" Foreground="White" Grid.Column="0" Grid.Row="0" VerticalAlignment="Center" HorizontalAlignment="Center" />
             <TextBlock Name="textblock_ImageName" Text="Name" Foreground="White" Grid.Column="0" Grid.Row="1"/>
-            <TextBlock Name="textblock_ImageResolution" Text="Resolution" Foreground="White" Grid.Column="0" Grid.Row="2" TextAlignment="Justify"/>
+            <TextBlock Name="textblock_ImageResolution" Text="Resolution" Foreground="White" Grid.Column="0" Grid.Row="2"/>
             <TextBlock Name="textblock_ImagePathOnCloud" Text="Path on Cloud" Foreground="White" Grid.Column="0" Grid.Row="3"/>
             <TextBlock Name="textblock_ImageLocation" Text="Geographic Location" Foreground="White" Grid.Column="0" Grid.Row="4"/>
             <TextBlock Name="textblock_ImageDateTaken" Text="Date Taken" Foreground="White" Grid.Column="0" Grid.Row="5"/>
             <TextBlock Name="textblock_ImageCameraMakeModel" Text="Camera Make and Model" Foreground="White" Grid.Column="0" Grid.Row="6"/>
+            <TextBlock Name="textblock_PictureMode" Text="PictureMode" Foreground="White" Grid.Column="0" Grid.Row="7"/>
         </Grid>
     </Grid>
 </Page>

@@ -55,11 +55,14 @@ namespace OneDrivePhotoBrowser
         private ObservableCollection<ItemModel> NextImageBatch = new ObservableCollection<ItemModel>();
 
         private ItemModel currentItem = null;
+        private String currentPicId;
+        private List<string> CurrentModePicList = new List<string>();
+        private String selectedMode = null;
 
         private DispatcherTimer slideShowTimer = new DispatcherTimer();
         private DispatcherTimer timeoutTimer = new DispatcherTimer();
 
-        private Settings appSettings;
+        private Settings appSettings = new Settings();
         private CategoryManager categoryManager;
 
 
@@ -76,21 +79,85 @@ namespace OneDrivePhotoBrowser
             slideShowTimer.Tick += slideShowTimer_Tick;
             timeoutTimer.Tick += timeoutTimer_Tick;
 
-            // load current app settings
-            //appSettings.Load();
-            //categoryManager.Load();
-
             if (this.itemsController == null)
             {
                 this.itemsController = new ItemsController(((App)Application.Current).GraphClient);
             }
-
             var last = ((App)Application.Current).NavigationStack.Last();
+            // load current app settings
+            //appSettings.Load();
+            //categoryManager.Load();
+            selectedMode = currentMode();
             
-            AllImageIds = await this.itemsController.GetInitialSetOfImagesIds(null, IMAGES_FLIPVIEW_PERBATCH*3);
+            checkMode(selectedMode);
+            
+        }
+
+        private void checkMode(string value)
+        {
+            switch (value)
+            {
+                case "RANDOM":
+                    loadRandomImages();
+                    break;
+                case "LIKED_ONLY":
+                    UpdateCurrentList("Liked");
+                    loadLikedImages();
+                    break;
+                case "DISLIKED":
+                    UpdateCurrentList("DisLiked");
+                    loadDisLikedImages();
+                    break;
+            }
+        }
+        private async void loadLikedImages()
+        {
+            progressRing.IsActive = true;
+            AllImageIds.Clear();
+            ActiveImages.Clear();
+            this.DataContext = null;
+
+            AllImageIds = CurrentModePicList;
 
             if (AllImageIds.Count == 0)
                 return;
+            
+
+            ActiveImages = await PopulateImageBatch();
+
+            if (ActiveImages.Count == 0)
+                return;
+            
+            this.DataContext = ActiveImages;
+
+            flipView_Slideshow.SelectedIndex = 0;
+
+            // Yes, we will still be loading in the background, but intial n images should be in the slideshow by now 
+            progressRing.IsActive = false;
+
+            // Start the timeout timer. Once it ticks the slideshow timer starts
+            ResetTimeoutTimer();
+
+            NextImageBatch = await PopulateImageBatch();
+            await AddUpcomingBatchToActive(false);
+
+            
+
+
+        }
+
+        private async void loadDisLikedImages()
+        {
+            progressRing.IsActive = true;
+            AllImageIds.Clear();
+            ActiveImages.Clear();
+            this.DataContext = null;
+
+            AllImageIds = CurrentModePicList;
+
+            if (AllImageIds.Count == 0)
+                return;
+
 
             ActiveImages = await PopulateImageBatch();
 
@@ -100,7 +167,44 @@ namespace OneDrivePhotoBrowser
             this.DataContext = ActiveImages;
 
             flipView_Slideshow.SelectedIndex = 0;
+
+            // Yes, we will still be loading in the background, but intial n images should be in the slideshow by now 
+            progressRing.IsActive = false;
+
+            // Start the timeout timer. Once it ticks the slideshow timer starts
+            ResetTimeoutTimer();
+
+            NextImageBatch = await PopulateImageBatch();
+            await AddUpcomingBatchToActive(false);
+
+
+        }
+
+        /// <summary>
+        /// If Mode = Random it loads all images from your OneDrive 
+        /// </summary>
+        private async void loadRandomImages()
+        {
+            progressRing.IsActive = true;
+            AllImageIds.Clear();
+            ActiveImages.Clear();
+            this.DataContext = null;
+
+            AllImageIds = await this.itemsController.GetInitialSetOfImagesIds(null, IMAGES_FLIPVIEW_PERBATCH * 3);
+
+            if (AllImageIds.Count == 0)
+                return;
+
+            ActiveImages = await PopulateImageBatch();
+
+            if (ActiveImages.Count == 0)
+                return;
+
             
+            this.DataContext = ActiveImages;
+
+            flipView_Slideshow.SelectedIndex = 0;
+
             // Yes, we will still be loading in the background, but intial n images should be in the slideshow by now 
             progressRing.IsActive = false;
 
@@ -213,19 +317,25 @@ namespace OneDrivePhotoBrowser
 
             object o = flipView_Slideshow.SelectedItem;
             currentItem = o as ItemModel;
+            SetCurrentImageID(currentItem);
             SetCurrentImageInfo(currentItem);
-
+            
             textblock_CurrentImageIndex.Text = flipView_Slideshow.SelectedIndex.ToString();
         }
 
+        
+
+
         private void SetCurrentImageInfo(ItemModel currentItem)
         {
+            
             SetTextblockString(textblock_ImageDateTaken, currentItem.TakenDateTime);
             SetTextblockString(textblock_ImageCameraMakeModel, currentItem.CameraMake + ", " + currentItem.CameraModel);
             SetTextblockString(textblock_ImageLocation, currentItem.Location);
             SetTextblockString(textblock_ImageName, currentItem.Name);
             SetTextblockString(textblock_ImagePathOnCloud, currentItem.PathInCloud);
-            SetTextblockString(textblock_ImageResolution, currentItem.ImageHeight + " * " + currentItem.ImageHeight);
+            SetTextblockString(textblock_ImageResolution, currentItem.ImageWidth + " x " + currentItem.ImageHeight);
+            SetTextblockString(textblock_PictureMode, selectedMode);
         }
 
         private void SetTextblockString(TextBlock textBl, string text)
@@ -237,6 +347,24 @@ namespace OneDrivePhotoBrowser
                 textBl.Text = text;
             }
         }
+
+
+        private void SetCurrentImageID(ItemModel currentItem)
+        {
+            currentPicId = currentItem.Id;
+        }
+
+        /// <summary>
+        /// Returns an id of an Image
+        /// that is currently on the users screan
+        /// </summary>
+        private string PicIdReturn()
+        {
+            return currentPicId;
+           
+        }
+
+
 
         /// <summary>
         /// Loads the actual Bitmap that is displayed in SlideShow for the image item
@@ -453,5 +581,65 @@ namespace OneDrivePhotoBrowser
                 AllImageIds.Add(UpcomingImageIds.Dequeue());
             }
         }
+
+
+        private void RandomMode_Click(object sender, RoutedEventArgs e)
+        {
+            appSettings.Mode = Settings.AppMode.RANDOM;
+            selectedMode = currentMode();
+            checkMode(selectedMode);
+        }
+        private void LikedMode_Click(object sender, RoutedEventArgs e)
+        {
+            appSettings.Mode = Settings.AppMode.LIKED_ONLY;
+            selectedMode = currentMode();
+            checkMode(selectedMode);
+        }
+        private void DislikedMode_Click(object sender, RoutedEventArgs e)
+        {
+            appSettings.Mode = Settings.AppMode.DISLIKED;
+            selectedMode = currentMode();
+            checkMode(selectedMode);
+        }
+
+
+        /// <summary>
+        /// Like Button Clicked
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void LikeButton_Click(object sender, RoutedEventArgs e)
+        {
+            appSettings.WritePicIdToFile(PicIdReturn(),Liked.Name);
+        }
+
+
+       
+        /// <summary>
+        /// Dislike Button Clicked
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void DisLikeButton_Click(object sender, RoutedEventArgs e)
+        {
+            appSettings.WritePicIdToFile(PicIdReturn(), DisLiked.Name);
+        }
+
+        /// <summary>
+        /// Returns the mode that is currently selected as a string
+        /// </summary>
+        private string currentMode()
+        {
+            return appSettings.Mode.ToString();
+        }
+
+        // Calls a method that will return desiered Mode list of PicIds
+        private async void UpdateCurrentList(string mode)  
+        {
+            CurrentModePicList.Clear();
+            CurrentModePicList = await appSettings.LoadPicInCurrentMode(mode);
+        }
     }
+
+
 }
